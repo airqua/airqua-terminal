@@ -5,7 +5,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <PubSubClient.h>
-#include <TFT_eSPI.h>
+#include "TFT_eSPI.h"
 #include <Multichannel_Gas_GMXXX.h>
 #include <Wire.h>
 #include "Free_Fonts.h"
@@ -194,7 +194,7 @@ int preheat = -1;
 // the setup function runs once when you press reset or power the board
 void setup() {
   Serial.begin(115200);
-  while(debug_wait && !Serial) delay(500); //wait for serial
+  while(debug_wait && !Serial); //wait for serial
   
   pinMode(WIO_BUZZER, OUTPUT);
   pinMode(WIO_KEY_A, INPUT_PULLUP);
