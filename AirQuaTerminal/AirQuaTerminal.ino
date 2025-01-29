@@ -6,12 +6,11 @@
 #include <HTTPClient.h>
 #include <PubSubClient.h>
 #include "TFT_eSPI.h"
-#include <Multichannel_Gas_GMXXX.h>
 #include <Wire.h>
+#include "MutichannelGasSensor.h"
 #include "Free_Fonts.h"
 
 TFT_eSPI tft;
-GAS_GMXXX<TwoWire> gas;
 WiFiClientSecure wifiClient;
 PubSubClient pubsubClient(wifiClient);
 
@@ -41,13 +40,6 @@ const int send_msec = 3600000; // 60 min
 
 const int width = 320;
 const int height = 240;
-
-const double molweight_co = 28.01;
-const double molweight_no2 = 46.01;
-const double molweight_c2h5oh = 46.07;
-double PpmToUgm3(double ppm, double molweight) {
-  return 0.0409 * ppm * molweight;
-}
 
 void redrawWiFiScreen() {
   Serial.println("redrawing wifi screen");
@@ -116,13 +108,20 @@ void redrawInterface() {
   const char* sensors[] = {
     "CO", "C2H5OH", "NULL", "NULL", "NO2", "NULL", "NULL", "NULL"
   };
-  int data[] = {
+  float data[] = {
     0, 0, 0, 0, 0, 0, 0, 0
   };
-  data[0] = PpmToUgm3(gas.getGM702B(), molweight_co);
-  data[1] = PpmToUgm3(gas.getGM302B(), molweight_c2h5oh);
-  data[4] = PpmToUgm3(gas.getGM102B(), molweight_no2);
-  
+
+  data[0] = gas.measure_CO();
+  data[1] = gas.measure_C2H5OH();
+  data[4] = gas.measure_NO2();
+
+  Serial.print("CO2: ");
+  Serial.println(data[0]);
+  Serial.print("C2H5OH: ");
+  Serial.println(data[1]);
+  Serial.print("NO2: ");
+  Serial.println(data[4]);
   
   int i; //columns
   int j; //rows
@@ -133,7 +132,7 @@ void redrawInterface() {
     {
       if(sensors[si] != "NULL") {
         char* str = new char[25];
-        sprintf(str, "%s: %d ug/m3", sensors[si], data[si]);
+        sprintf(str, "%s: %.2f ppm", sensors[si], data[si]);
         tft.drawString(str, 
           (si + 4 <= 7 && sensors[si + 4] == "NULL" && j % 2 == 0) || (si >= 4 && sensors[si - 4] == "NULL" && j % 2 == 1) ? 
           (width - tft.textWidth(str))/2 :
@@ -180,9 +179,9 @@ void sendMqttData() {
   }
   char* buf = new char[45];
   sprintf(buf, "{\"co\":%d,\"no2\":%d,\"c2h5oh\":%d}", 
-    (int)(PpmToUgm3(gas.getGM702B(), molweight_co)), 
-    (int)(PpmToUgm3(gas.getGM102B(), molweight_no2)), 
-    (int)(PpmToUgm3(gas.getGM302B(), molweight_c2h5oh))
+    (int)gas.measure_CO(), 
+    (int)gas.measure_NO2(), 
+    (int)gas.measure_C2H5OH()
   );
   pubsubClient.publish(mqtt_device, buf);
   Serial.println("Published data to MQTT:");
@@ -205,7 +204,10 @@ void setup() {
   tft.begin();
   tft.setRotation(3);
 
-  gas.begin(Wire, 0x08);
+  gas.begin(0x04);
+
+  Serial.print("Gas Firmware Version = ");
+  Serial.println(gas.getVersion());
 
   if(send_enabled) {
       redrawWiFiScreen();
